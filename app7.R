@@ -1,10 +1,7 @@
 # app.R — ST558 Project2 Shiny App 
-# app.R is failing on same error again and again so I created another RT script. 
-# Looks like app.R is having some cache or session data. I will check this later 
-# But for not lets proceed with app7.R
 options(stringsAsFactors = FALSE)
 
-#Libraries
+# ---- Libraries ----
 library(shiny)
 library(dplyr)
 library(tidyr)
@@ -27,7 +24,7 @@ bikeData$Seasons <- factor(bikeData$Seasons, levels = c("Winter","Spring","Summe
 bikeData$Month <- format(bikeData$Date, "%b")
 
 
-# Define columns
+# find columns
 cat_vars <- c("Seasons", "Holiday", "Functioning Day")
 num_vars <- c("Rented Bike Count", "Temperature(C)", "Humidity(%)",
               "Wind speed (m/s)", "Visibility (10m)", "Dew point temperature(C)",
@@ -176,7 +173,7 @@ server <- function(input, output, session) {
   
   # plots
   
-  
+
 }
 
 # ---- Run App ----

@@ -52,7 +52,7 @@ ui <- fluidPage(
         tabPanel("About",
                  h4("About this app"),
                  p("This app lets you look at the Seoul bike data and make plots."),
-                 img(src = "seoul-bikes.jpg", width = "50%")),
+                 img(src = "/Users/saurabhgupta/projects/github/ST558_Project2_ShinyApp/app-cover.jpg", width = "50%")),
         tabPanel("Data",
                  downloadButton("downloadBtn", "Download CSV"),
                  br(), tableOutput("dataTable")),
@@ -76,7 +76,10 @@ ui <- fluidPage(
                  conditionalPanel(
                    "input.showMode == 'Plots'",
                    selectInput("pltType", "Plot type:",
-                               choices = c("Bar", "Violin", "Scatter", "Heatmap", "Line", "Boxplot")),
+                               choices = c("Bar (Seasons and Holiday)",
+                                           "Boxplot (Rentals and Seasons)",
+                                           "Scatter (Temp and Rentals)",
+                                           "Line (Daily Rentals by Season)")),
                    checkboxInput("facetFree", "Free y-axis", TRUE),
                    plotOutput("plt_out")
                  )
@@ -120,6 +123,7 @@ server <- function(input, output, session) {
     if (!is.null(input$num1vals)) d <- d %>% filter(between(.data[[input$num1]], input$num1vals[1], input$num1vals[2]))
     if (!is.null(input$num2vals)) d <- d %>% filter(between(.data[[input$num2]], input$num2vals[1], input$num2vals[2]))
     rv$data <- d
+    print(nrow(rv$data))
   })
   
   curData <- reactive(rv$data)
@@ -171,8 +175,43 @@ server <- function(input, output, session) {
     if (length(hit)) hit[1] else "Temperature(°C)"
   }
   
-  # plots
-  
+  # ---- plots ----
+  output$plt_out <- renderPlot({
+    d <- curData()
+    validate(need(nrow(d)>0,"No rows to plot."))
+    
+    if (input$pltType=="Bar (Seasons and Holiday)") {
+      ggplot(d,aes(x=Seasons,fill=Holiday)) +
+        geom_bar() +
+        labs(x="Season",y="Count",title="Counts by Season and Holiday") +
+        theme_minimal()
+      
+    } else if (input$pltType=="Boxplot (Rentals and Seasons)") {
+      ggplot(d,aes(x=Seasons,y=`Rented Bike Count`,fill=Seasons)) +
+        geom_boxplot() +
+        labs(x="Season",y="Rented Bike Count",title="Rentals by Season") +
+        theme_minimal()
+      
+    } else if (input$pltType=="Scatter (Temp and Rentals)") {
+      temp_col <- if("Temperature(C)" %in% names(d)) "Temperature(C)" else "Temperature(°C)"
+      ggplot(d,aes(x=.data[[temp_col]],y=`Rented Bike Count`,color=`Functioning Day`)) +
+        geom_point(alpha=0.5) +
+        facet_wrap(~Seasons) +
+        labs(x=temp_col,y="Rented Bike Count",title="Temperature vs Rentals") +
+        theme_minimal()
+      
+    } else if (input$pltType=="Line (Daily Rentals by Season)") {
+      daily <- d %>%
+        filter(!is.na(Date)) %>%
+        group_by(Date,Seasons) %>%
+        summarise(rentals=sum(`Rented Bike Count`,na.rm=TRUE),.groups="drop")
+      ggplot(daily,aes(x=Date,y=rentals,color=Seasons)) +
+        geom_line() +
+        facet_wrap(~Seasons,scales="free_y") +
+        labs(x="Date",y="Total Rentals",title="Daily Rentals by Season") +
+        theme_minimal()
+    }
+  })  
 
 }
 

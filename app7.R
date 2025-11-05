@@ -9,11 +9,11 @@ library(ggplot2)
 library(DT)  
 
 # read and laod data file
-path <- "/Users/saurabhgupta/projects/github/ST558_Project2_ShinyApp/SeoulBikeData.csv"
+file_path <- "/Users/saurabhgupta/projects/github/ST558_Project2_ShinyApp/SeoulBikeData.csv"
 
-txt <- readLines(path, encoding = "UTF-8", warn = FALSE)
-txt <- iconv(txt, from = "", to = "UTF-8", sub = "")
-bikeData <- read.csv(textConnection(txt), check.names = FALSE)
+text_lines <- readLines(file_path, encoding = "UTF-8", warn = FALSE)
+text_lines <- iconv(text_lines, from = "", to = "UTF-8", sub = "")
+bikeData <- read.csv(textConnection(text_lines), check.names = FALSE)
 closeAllConnections()
 
 # change data types
@@ -60,7 +60,11 @@ ui <- fluidPage(
                  p("Use the sidebar to subset the data by categories or numeric ranges. 
              The Data tab displays and allows download of the filtered dataset. 
              The Explore tab provides summary tables and plots."),
-                 img(src = "app-cover.jpg", width = "100%")
+                 img(src = "app-cover.jpg", width = "100%"),
+                 br(),
+                 hr(),
+                 h4("Filtered Data Summary"),
+                 textOutput("dataSummary")
         ),
         
         #  Data Tab 
@@ -109,55 +113,69 @@ server <- function(input, output, session) {
   
   #  UI for category levels
   output$cat1_opts <- renderUI({
-    lv <- levels(bikeData[[input$cat1]])
-    selectInput("cat1vals", "Levels:", choices = lv, selected = lv, multiple = TRUE)
+    category_levels <- levels(bikeData[[input$cat1]])
+    selectInput("cat1vals", "Levels:", choices = category_levels, selected = category_levels, multiple = TRUE)
   })
   output$cat2_opts <- renderUI({
-    lv <- levels(bikeData[[input$cat2]])
-    selectInput("cat2vals", "Levels:", choices = lv, selected = lv, multiple = TRUE)
+    category_levels <- levels(bikeData[[input$cat2]])
+    selectInput("cat2vals", "Levels:", choices = category_levels, selected = category_levels, multiple = TRUE)
   })
   
   # UI for numeric ranges 
   output$num1_range <- renderUI({
-    rng <- range(as.numeric(bikeData[[input$num1]]), na.rm = TRUE)
-    sliderInput("num1vals", "Range:", min = floor(rng[1]), max = ceiling(rng[2]), value = rng)
+    numeric_range <- range(as.numeric(bikeData[[input$num1]]), na.rm = TRUE)
+    sliderInput("num1vals", "Range:", min = floor(numeric_range[1]), max = ceiling(numeric_range[2]), value = numeric_range)
   })
   output$num2_range <- renderUI({
-    rng <- range(as.numeric(bikeData[[input$num2]]), na.rm = TRUE)
-    sliderInput("num2vals", "Range:", min = floor(rng[1]), max = ceiling(rng[2]), value = rng)
+    numeric_range <- range(as.numeric(bikeData[[input$num2]]), na.rm = TRUE)
+    sliderInput("num2vals", "Range:", min = floor(numeric_range[1]), max = ceiling(numeric_range[2]), value = numeric_range)
   })
   
+  
   #  Reactive data 
-  rv <- reactiveValues(data = bikeData)
+  filtered_data_values <- reactiveValues(data = bikeData)
   observeEvent(input$goBtn, {
-    d <- bikeData
-    if (!is.null(input$cat1vals)) d <- d %>% filter(.data[[input$cat1]] %in% input$cat1vals)
-    if (!is.null(input$cat2vals)) d <- d %>% filter(.data[[input$cat2]] %in% input$cat2vals)
-    if (!is.null(input$num1vals)) d <- d %>% filter(between(.data[[input$num1]], input$num1vals[1], input$num1vals[2]))
-    if (!is.null(input$num2vals)) d <- d %>% filter(between(.data[[input$num2]], input$num2vals[1], input$num2vals[2]))
-    rv$data <- d
+    filtered_dataset <- bikeData
+    if (!is.null(input$cat1vals)) filtered_dataset <- filtered_dataset %>% filter(.data[[input$cat1]] %in% input$cat1vals)
+    if (!is.null(input$cat2vals)) filtered_dataset <- filtered_dataset %>% filter(.data[[input$cat2]] %in% input$cat2vals)
+    if (!is.null(input$num1vals)) filtered_dataset <- filtered_dataset %>% filter(between(.data[[input$num1]], input$num1vals[1], input$num1vals[2]))
+    if (!is.null(input$num2vals)) filtered_dataset <- filtered_dataset %>% filter(between(.data[[input$num2]], input$num2vals[1], input$num2vals[2]))
+    filtered_data_values$data <- filtered_dataset
   })
-  curData <- reactive(rv$data)
+  current_filtered_data <- reactive(filtered_data_values$data)
+  
+  # Filtered Data Summary
+  output$dataSummary <- renderText({
+    filtered_data <- current_filtered_data()
+    paste0(
+      "Filtered ", nrow(filtered_data), " rows and ", ncol(filtered_data), " columns after applying filters.\n",
+      "Filters used → ",
+      input$cat1, ": ", paste(input$cat1vals, collapse = ", "), "; ",
+      input$cat2, ": ", paste(input$cat2vals, collapse = ", "), "; ",
+      input$num1, ": ", paste(input$num1vals, collapse = "–"), "; ",
+      input$num2, ": ", paste(input$num2vals, collapse = "–")
+    )
+  })
   
   #  Data Tab 
   output$dataTable <- DT::renderDataTable({
-    d <- curData()
-    validate(need(nrow(d) > 0, "No rows left"))
-    d
+    filtered_data <- current_filtered_data()
+    validate(need(nrow(filtered_data) > 0, "No rows left"))
+    filtered_data
   })
   output$downloadBtn <- downloadHandler(
     filename = function() paste0("bike_data_", Sys.Date(), ".csv"),
-    content = function(file) write.csv(curData(), file, row.names = FALSE)
+    content = function(file) write.csv(current_filtered_data(), file, row.names = FALSE)
   )
   
-# Tables
+  # Tables
   output$tab1_out <- renderTable({
-    d <- curData()
-    d %>% count(.data[[input$tab1_var]])
+    filtered_data <- current_filtered_data()
+    filtered_data %>% count(.data[[input$tab1_var]])
   })
   output$tab2_out <- renderTable({
-    d <- curData()
-    d %>%
+    filtered_data <- current_filtered_data()
+    filtered_data %>%
       count(.data[[input$tab2_var1]], .data[[input$tab2_var2]]) %>%
       tidyr::pivot_wider(
         names_from = !! rlang::sym(input$tab2_var2),
@@ -168,8 +186,8 @@ server <- function(input, output, session) {
   
   #  Summaries 
   output$sum_out <- renderTable({
-    d <- curData()
-    d %>%
+    filtered_data <- current_filtered_data()
+    filtered_data %>%
       group_by(.data[[input$sum_grp]]) %>%
       summarise(
         n = n(),
@@ -183,35 +201,35 @@ server <- function(input, output, session) {
   
   # Plots 
   output$plt_out <- renderPlot({
-    d <- curData()
-    validate(need(nrow(d) > 0, "No rows to plot."))
+    filtered_data <- current_filtered_data()
+    validate(need(nrow(filtered_data) > 0, "No rows to plot."))
     
     if (input$pltType == "Bar (Seasons and Holiday)") {
-      ggplot(d, aes(x = Seasons, fill = Holiday)) +
+      ggplot(filtered_data, aes(x = Seasons, fill = Holiday)) +
         geom_bar() +
         labs(x = "Season", y = "Count", title = "Counts by Season and Holiday") +
         theme_minimal()
       
     } else if (input$pltType == "Boxplot (Rentals and Seasons)") {
-      ggplot(d, aes(x = Seasons, y = `Rented Bike Count`, fill = Seasons)) +
+      ggplot(filtered_data, aes(x = Seasons, y = `Rented Bike Count`, fill = Seasons)) +
         geom_boxplot() +
         labs(x = "Season", y = "Rented Bike Count", title = "Rentals by Season") +
         theme_minimal()
       
     } else if (input$pltType == "Scatter (Temp and Rentals)") {
-      temp_col <- if ("Temperature(C)" %in% names(d)) "Temperature(C)" else "Temperature(°C)"
-      ggplot(d, aes(x = .data[[temp_col]], y = `Rented Bike Count`, color = `Functioning Day`)) +
+      temperature_column <- if ("Temperature(C)" %in% names(filtered_data)) "Temperature(C)" else "Temperature(°C)"
+      ggplot(filtered_data, aes(x = .data[[temperature_column]], y = `Rented Bike Count`, color = `Functioning Day`)) +
         geom_point(alpha = 0.5) +
         facet_wrap(~Seasons) +
-        labs(x = temp_col, y = "Rented Bike Count", title = "Temperature vs Rentals") +
+        labs(x = temperature_column, y = "Rented Bike Count", title = "Temperature vs Rentals") +
         theme_minimal()
       
     } else if (input$pltType == "Line (Daily Rentals by Season)") {
-      daily <- d %>%
+      daily_summary <- filtered_data %>%
         filter(!is.na(Date)) %>%
         group_by(Date, Seasons) %>%
         summarise(rentals = sum(`Rented Bike Count`, na.rm = TRUE), .groups = "drop")
-      ggplot(daily, aes(x = Date, y = rentals, color = Seasons)) +
+      ggplot(daily_summary, aes(x = Date, y = rentals, color = Seasons)) +
         geom_line() +
         facet_wrap(~Seasons, scales = if (input$facetFree) "free_y" else "fixed") +
         labs(x = "Date", y = "Total Rentals", title = "Daily Rentals by Season") +

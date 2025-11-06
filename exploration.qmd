@@ -1,0 +1,193 @@
+---
+title: "exploration"
+format: html
+editor: visual
+---
+
+## Seol Bike Data Explorations
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+```
+
+### Load the data
+
+```{r}
+# Load data
+
+
+file_path <- "/Users/saurabhgupta/projects/github/ST558_Project2_ShinyApp/SeoulBikeData.csv"
+
+
+
+```
+
+### Read data
+
+```{r}
+# Read data
+
+text_lines <- readLines(file_path, encoding = "UTF-8", warn = FALSE)
+text_lines <- iconv(text_lines, from = "", to = "UTF-8", sub = "")
+bikeData <- read.csv(textConnection(text_lines), check.names = FALSE)
+closeAllConnections()
+
+
+bikeData$Date <- as.Date(bikeData$Date, "%d/%m/%Y")
+bikeData$Seasons <- factor(bikeData$Seasons, levels = c("Winter","Spring","Summer","Autumn"))
+
+```
+
+### 1. Overview
+
+This file shows some simple summaries and plots of the **Seoul Bike Sharing** dataset.\
+It helps us understand the data for building the Shiny app.
+
+### 2. Look at the Data
+
+The dataset has bike rental counts in Seoul by hour and day.\
+It also includes weather and season information.
+
+```{r}
+head(bikeData)
+str(bikeData)
+summary(bikeData)
+
+```
+
+### 3. Tables
+
+### One-way table (Seasons)
+
+```{r}
+
+table(bikeData$Seasons)
+
+
+```
+
+There are about the same number of records for each season - winter, spring, summer, and autumn, meaning the data is evenly spread across the year.
+
+### Two-way table (Seasons vs Holiday)
+
+```{r}
+table(bikeData$Seasons, bikeData$Holiday)
+
+```
+
+Most of the days are “No Holiday.” Holidays make up only a small part of the records in every season.
+
+### 4. Numeric Summaries by Season
+
+```{r}
+bikeData %>%
+group_by(Seasons) %>%
+summarise(
+mean_rentals = mean(`Rented Bike Count`, na.rm = TRUE),
+median_rentals = median(`Rented Bike Count`, na.rm = TRUE),
+sd_rentals = sd(`Rented Bike Count`, na.rm = TRUE)
+)
+
+```
+
+Average rentals go up in warmer seasons. Winter has the lowest average, while summer has the highest.\
+Spring and autumn sit in the middle, showing a steady increase and decrease as the weather changes.
+
+### 5. Plots
+
+### Plot 1 – Bar plot (Records by Season)
+
+```{r}
+ggplot(bikeData, aes(x = Seasons, fill = Seasons)) +
+geom_bar() +
+labs(title = "Number of Records by Season",
+x = "Season", y = "Count") +
+theme_minimal()
+
+
+
+```
+
+The bar chart confirms that data is evenly distributed across all seasons. This ensures each season has enough information for comparison.
+
+### Plot 2 – Boxplot (Rentals by Season)
+
+```{r}
+ggplot(bikeData, aes(x = Seasons, y = `Rented Bike Count`, fill = Seasons)) +
+geom_boxplot() +
+labs(title = "Bike Rentals by Season", x = "Season", y = "Rented Bike Count") +
+theme_minimal()
+
+```
+
+Bike rentals vary widely in summer and are much lower in winter. The spread of data is larger in warmer months, showing more rental activity and fluctuations.
+
+### Plot 3 – Scatter plot (Temperature vs Rentals)
+
+```{r}
+ggplot(bikeData, aes(x = `Temperature(C)`, y = `Rented Bike Count`, color = Seasons)) +
+geom_point(alpha = 0.5) +
+labs(title = "Temperature vs Bike Rentals", x = "Temperature (C)", y = "Rented Bike Count") +
+theme_minimal()
+
+
+```
+
+There’s a clear upward trend between temperature and bike rentals. Warmer temperatures lead to more rentals, while cold days see very few bikes rented.
+
+### Plot 4 – Line plot (Daily Rentals over Time)
+
+```{r}
+daily <- bikeData %>%
+group_by(Date, Seasons) %>%
+summarise(total_rentals = sum(`Rented Bike Count`, na.rm = TRUE), .groups = "drop")
+
+ggplot(daily, aes(x = Date, y = total_rentals, color = Seasons)) +
+geom_line() +
+labs(title = "Daily Total Rentals by Season", x = "Date", y = "Total Rentals") +
+theme_minimal()
+
+
+```
+
+Rental activity changes over the year. The time series shows clear seasonal patterns, with peaks in the middle of the year (warmer month) and dips in colder months. It captures how rentals follow temperature trends over time.
+
+### Plot 5 – Histogram (Temperature)
+
+```{r}
+ggplot(bikeData, aes(x = `Humidity(%)`, fill = Seasons)) +
+  geom_histogram(bins = 30, color = "white", alpha = 0.7) +
+  labs(title = "Humidity Distribution by Season",
+       x = "Humidity (%)", y = "Frequency") +
+  theme_minimal()
+
+
+
+
+
+```
+
+Humidity tends to stay in a comfortable mid-range between 40% and 70%. Very dry or very humid days are rare, meaning weather conditions were usually moderate.
+
+### Plot 6 – Heatmap (Average Rentals by Hour and Season)
+
+```{r}
+avg_hour <- bikeData %>%
+group_by(Hour, Seasons) %>%
+summarise(avg_rentals = mean(`Rented Bike Count`, na.rm = TRUE), .groups = "drop")
+
+ggplot(avg_hour, aes(x = Hour, y = Seasons, fill = avg_rentals)) +
+geom_tile() +
+labs(title = "Average Rentals by Hour and Season", x = "Hour", y = "Season", fill = "Avg Rentals") +
+theme_minimal()
+
+
+```
+
+People rent bikes most often around 8 AM and 6 PM, matching commute hours. Summer shows the brightest spots, meaning more bikes were used during warm weather and busy times.
+
+### END of File 

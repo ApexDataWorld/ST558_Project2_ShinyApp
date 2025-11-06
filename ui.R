@@ -1,111 +1,77 @@
-
-
+# ui.R — User Interface for Seoul Bike App
 library(shiny)
+library(DT)
 
-
+# ---- UI Definition ----
 ui <- fluidPage(
-  titlePanel("Seoul Bike Sharing Explorer"),
-  
+  titlePanel("Seoul Bike App"),
   sidebarLayout(
     sidebarPanel(
-      h4("Subset data (applies on button click)"),
-      
-      # Categorical filters
-      selectizeInput("cat1", "Categorical filter 1",
-                     choices = cat_choices,
-                     selected = if (length(cat_choices)) cat_choices[1] else NULL),
-      uiOutput("cat1_levels"),
-      
-      selectizeInput("cat2", "Categorical filter 2",
-                     choices = cat_choices,
-                     selected = if (length(cat_choices) > 1) cat_choices[2] else NULL),
-      uiOutput("cat2_levels"),
-      
-      # Numeric filters (dynamic sliders appear)
-      selectInput("num1", "Numeric filter 1",
-                  choices = c("None", num_choices),
-                  selected = if (length(num_choices)) num_choices[1] else "None"),
+      helpText("Use these filters to subset the data, then click Apply Filters."),
+      selectInput("cat1", "First category:", choices = cat_vars, selected = cat_vars[1]),
+      uiOutput("cat1_opts"),
+      selectInput("cat2", "Second category:", choices = setdiff(cat_vars, cat_vars[1])),
+      uiOutput("cat2_opts"),
+      selectInput("num1", "First numeric variable:", choices = num_vars),
       uiOutput("num1_range"),
-      
-      selectInput("num2", "Numeric filter 2",
-                  choices = c("None", num_choices),
-                  selected = if (length(num_choices) > 1) num_choices[2] else "None"),
+      selectInput("num2", "Second numeric variable:", choices = setdiff(num_vars, num_vars[1])),
       uiOutput("num2_range"),
-      
-      actionButton("subset_button", "Subset Data", class = "btn-primary")
+      actionButton("goBtn", "Apply Filters")
     ),
-    
     mainPanel(
       tabsetPanel(
-        tabPanel(
-          "About",
-          h3("Purpose"),
-          p("Explore the Seoul Bike Sharing dataset. Use the sidebar to choose filters and click ",
-            strong("Subset Data"), " to apply them. Then download or explore summaries/plots of the subset."),
-          h4("Data Source"),
-          p("UCI Machine Learning Repository – Seoul Bike Sharing Demand ",
-            a(href = "https://archive.ics.uci.edu/dataset/560/seoul+bike+sharing+demand",
-              "Dataset link", target = "_blank")),
-          h4("Tabs"),
-          tags$ul(
-            tags$li(strong("Data Download:"), " table view of the current subset and CSV download."),
-            tags$li(strong("Data Exploration:"), " one or two-way tables, numeric summaries by group, and multiple plots.")
-          ),
-          br(),
-          { if (file.exists("www/seoul_bike.jpg")) tags$img(src = "seoul_bike.jpg",
-                                                            style = "max-width:420px;border-radius:12px;") }
+        #  About Tab 
+        tabPanel("About",
+                 h4("About this App"),
+                 p("This app allows users to explore the Seoul Bike Sharing dataset interactively."),
+                 p("Data Source:",
+                   tags$a(href="https://archive.ics.uci.edu/ml/datasets/Seoul+Bike+Sharing+Demand",
+                          "UCI Machine Learning Repository"), "."),
+                 p("Use the sidebar to subset the data by categories or numeric ranges. 
+             The Data tab displays and allows download of the filtered dataset. 
+             The Explore tab provides summary tables and plots."),
+                 img(src = "app-cover.jpg", width = "100%"),
+                 br(),
+                 hr(),
+                 h4("Filtered Data Summary"),
+                 textOutput("dataSummary")
         ),
         
-        tabPanel(
-          "Data Download",
-          tableOutput("tbl"),
-          downloadButton("dl", "Download current subset")
+        #  Data Tab 
+        tabPanel("Data",
+                 downloadButton("downloadBtn", "Download CSV"),
+                 br(), br(),
+                 DT::dataTableOutput("dataTable")
         ),
         
-        tabPanel(
-          "Data Exploration",
-          
-          h4("Categorical summaries"),
-          radioButtons("which_cats", NULL, inline = TRUE,
-                       choices = c("One way" = "one", "Two way" = "two"),
-                       selected = "one"),
-          uiOutput("cat_summary_ui"),
-          tableOutput("cat_table"),
-          tags$hr(),
-          
-          h4("Numeric summaries by group"),
-          fluidRow(
-            column(6, selectInput("num_summary", "Numeric variable",
-                                  choices = num_choices,
-                                  selected = if (length(num_choices)) num_choices[1] else NULL)),
-            column(6, selectInput("grp_summary", "Group by (categorical)",
-                                  choices = cat_choices,
-                                  selected = if (length(cat_choices)) cat_choices[1] else NULL))
-          ),
-          tableOutput("num_table"),
-          tags$hr(),
-          
-          h4("Graphics"),
-          fluidRow(
-            column(4, selectInput("xvar", "X",
-                                  choices = c(cat_choices, num_choices),
-                                  selected = if (length(num_choices)) num_choices[1] else cat_choices[1])),
-            column(4, selectInput("yvar", "Y",
-                                  choices = num_choices,
-                                  selected = if (length(num_choices)) num_choices[1] else NULL)),
-            column(4, selectInput("color_by", "Color by",
-                                  choices = c("None", cat_choices),
-                                  selected = if ("Seasons" %in% cat_choices) "Seasons" else "None"))
-          ),
-          fluidRow(
-            column(6, checkboxInput("facet_on", "Facet by Seasons", value = TRUE)),
-            column(6, selectInput("plot_type", "Plot type",
-                                  choices = c("Scatter+smooth", "Boxplot",
-                                              "Histogram", "Bar (count)",
-                                              "Heatmap (tile)"),
-                                  selected = "Scatter+smooth"))
-          ),
-          plotOutput("explore_plot", height = 420)
+        #  Explore Tab 
+        tabPanel("Explore",
+                 radioButtons("showMode", "Choose display type:",
+                              choices = c("Tables", "Summaries", "Plots")),
+                 conditionalPanel(
+                   "input.showMode == 'Tables'",
+                   selectInput("tab1_var", "One way table variable:", choices = cat_vars),
+                   selectInput("tab2_var1", "Two way table variable 1:", choices = cat_vars),
+                   selectInput("tab2_var2", "Two way table variable 2:", choices = cat_vars),
+                   tableOutput("tab1_out"),
+                   tableOutput("tab2_out")
+                 ),
+                 conditionalPanel(
+                   "input.showMode == 'Summaries'",
+                   selectInput("sum_num", "Numeric variable:", choices = num_vars),
+                   selectInput("sum_grp", "Group by (categorical):", choices = cat_vars),
+                   tableOutput("sum_out")
+                 ),
+                 conditionalPanel(
+                   "input.showMode == 'Plots'",
+                   selectInput("pltType", "Plot type:",
+                               choices = c("Bar (Seasons and Holiday)",
+                                           "Boxplot (Rentals and Seasons)",
+                                           "Scatter (Temp and Rentals)",
+                                           "Line (Daily Rentals by Season)")),
+                   checkboxInput("facetFree", "Free y-axis", TRUE),
+                   plotOutput("plt_out")
+                 )
         )
       )
     )
